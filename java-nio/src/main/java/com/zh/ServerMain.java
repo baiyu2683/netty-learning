@@ -4,14 +4,12 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
+import java.nio.channels.*;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * java nio server端例子
@@ -20,9 +18,12 @@ public class ServerMain {
 
   private static final ThreadPoolExecutor exector = new ThreadPoolExecutor(10, 10, 10, TimeUnit.SECONDS, new ArrayBlockingQueue<>(10));
 
+  private static Selector selector;
+  private static AtomicInteger bugLoop = new AtomicInteger(0);
+
   public static void main(String[] args) throws IOException {
     // 创建selector
-    Selector selector = Selector.open();
+    selector = Selector.open();
 
     // 创建serversocketChannel
     ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
@@ -40,7 +41,6 @@ public class ServerMain {
       // select方法仅仅当有事件发生的时候才会返回。
       // 设置超时时间1s
       int num = selector.select(5000);
-      System.out.println("事件个数: " + num);
       if (num <= 0) {
         continue;
       }
@@ -61,11 +61,11 @@ public class ServerMain {
           // 处理connect事件
           System.out.println("connect");
         } else  if (key.isWritable()) {
-          // 监听到写事件, 也就是对面的读事件
+          // 监听到写事件, 也就是底层写缓冲区空闲。一般都是空闲的，所以一般不注册此事件
           System.out.println("write");
-
+          handleWrite(selector, key);
         } else if (key.isReadable()) {
-          // 监听到读事件。也就是对面的写事件
+          // 监听到读事件。底层缓冲区有数据可读
           System.out.println("read");
           handleRead(selector, key);
         }
@@ -87,13 +87,43 @@ public class ServerMain {
     // 获得一个客户端连接
     SocketChannel socketChannel = (SocketChannel) key.channel();
 
-    // TODO 如何判断客户端异常关闭，在客户端异常关闭之后，下面这些方法都是true
-    System.out.println(socketChannel.isConnected() + "-" + socketChannel.isOpen() + "-" + key.isReadable() + "-" + key.isValid());
-
     System.out.println("attachment: " + key.attachment());
     ByteBuffer buffer = ByteBuffer.allocate(1024);
-    socketChannel.read(buffer);
+    try {
+      // 当服务端读数据，客户端此时异常关闭，会报如下错误
+      // Exception in thread "main" java.io.IOException: Connection reset by peer
+      int count = socketChannel.read(buffer);
+      // 关闭了
+      if (count < 0) {
+        socketChannel.close();
+        return;
+      }
+    } catch (Exception e) {
+      e.printStackTrace();
+      System.out.println("客户端异常关闭");
+      socketChannel.close();
+      return;
+    }
+
     buffer.flip();
     System.out.println("收到数据: " + new String(buffer.array(), 0, buffer.limit(), StandardCharsets.UTF_8));
+
+    // 注册一个写事件。用来写数据
+    ByteBuffer respBuffer = ByteBuffer.wrap(("服务端响应" + Thread.currentThread().getId()).getBytes(StandardCharsets.UTF_8));
+    socketChannel.register(selector, SelectionKey.OP_WRITE, respBuffer);
+  }
+
+  private static void handleWrite(Selector selector, SelectionKey key) throws IOException {
+    SocketChannel socketChannel = (SocketChannel) key.channel();
+    Object attachment = key.attachment();
+    if (attachment instanceof ByteBuffer) {
+      ByteBuffer buffer = (ByteBuffer) attachment;
+      while (buffer.hasRemaining()) {
+        socketChannel.write(buffer);
+      }
+      key.attach(null);
+    }
+    // 取消写事件
+    key.interestOps(key.interestOps() & ~ SelectionKey.OP_WRITE);
   }
 }
