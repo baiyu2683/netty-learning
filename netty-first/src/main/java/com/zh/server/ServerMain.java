@@ -3,6 +3,7 @@ package com.zh.server;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.ServerSocketChannel;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.logging.LogLevel;
@@ -21,17 +22,31 @@ public class ServerMain {
       serverBootstrap.group(boss, worker)
         .channel(NioServerSocketChannel.class)
         .option(ChannelOption.SO_BACKLOG, 128)  // 等待队列
+        .handler(new ChannelInitializer<ServerSocketChannel>() {
+          @Override
+          protected void initChannel(ServerSocketChannel serverSocketChannel) throws Exception {
+              serverSocketChannel.pipeline().addLast(new LoggingHandler(LogLevel.DEBUG));
+          }
+        })
         .childOption(ChannelOption.SO_KEEPALIVE, true) // socket保持链接
         .childHandler(new ChannelInitializer<SocketChannel>() {   // 为socketChannel相关事件增加事件处理器，放到pipeline中
           @Override
           protected void initChannel(SocketChannel socketChannel) throws Exception {
+            // 记录所有的socketChannel
             socketChannel.pipeline()
-              .addLast(new LoggingHandler(LogLevel.DEBUG))
+              .addLast(new LoggingHandler(LogLevel.TRACE))
               .addLast(new MessageHandler());
           }
         });
       // 绑定端口
       ChannelFuture channelFuture = serverBootstrap.bind(10090).sync();
+      channelFuture.addListener(future -> {
+        if (future.isSuccess()) {
+          System.out.println("绑定成功");
+        } else {
+          System.out.println("绑定失败");
+        }
+      });
       // 监听关闭
       channelFuture.channel().closeFuture().sync();
     } catch (Exception e){

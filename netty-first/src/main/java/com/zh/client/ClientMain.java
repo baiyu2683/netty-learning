@@ -25,7 +25,7 @@ public class ClientMain {
           @Override
           protected void initChannel(SocketChannel socketChannel) throws Exception {
             socketChannel.pipeline()
-              .addLast(new LoggingHandler(LogLevel.DEBUG))
+              .addLast(new LoggingHandler(LogLevel.TRACE))
               .addLast(new ClientHandler());
           }
         });

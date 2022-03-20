@@ -10,8 +10,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.zh</groupId>
-  <artifactId>netty-first</artifactId>
-  <description>入门案例：简单实现客户端和服务端进行通信</description>
+  <artifactId>netty-http</artifactId>
 
   <properties>
     <maven.compiler.source>8</maven.compiler.source>
@@ -29,4 +28,5 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
 </project>
