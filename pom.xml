@@ -14,6 +14,7 @@
       <module>netty-first</module>
       <module>netty-http</module>
       <module>netty-im</module>
+      <module>netty-heartbeat</module>
   </modules>
 
   <name>netty-learning</name>
