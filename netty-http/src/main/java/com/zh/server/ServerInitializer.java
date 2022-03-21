@@ -12,5 +12,6 @@ public class ServerInitializer extends ChannelInitializer<SocketChannel> {
     ChannelPipeline pipeline = ch.pipeline();
     pipeline.addLast(new HttpServerCodec())
       .addLast(new ServerMessageHandler());
+    System.out.println("asdf");
   }
 }
